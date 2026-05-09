@@ -1,62 +1,122 @@
-# Desktop Pet — Pixel Art Retro Companion
+# Desktop Pet — 一只住在你桌面上的像素史莱姆
 
-A pixel-art slime companion that lives on your macOS desktop. Feed it, play with it, watch it grow, and discover its story.
+> 它不是工具，不是助手，只是一个需要你照顾的小家伙。
 
-## Features
+**Desktop Pet** 是一个 macOS 桌面养成游戏，用像素复古画风重现了拓麻歌子和数码暴龙机的童年回忆。一只小小的史莱姆住在你的桌面上，会饿、会困、会开心、会难过，在你敲代码的间隙陪着你慢慢长大。
 
-- **Non-intrusive** — No popups, no notifications. Lives quietly in a corner
-- **Pixel art retro style** — 16x16 sprites at 10x scale, Game-Boy-era aesthetic
-- **4 growth stages** — Baby > Child > Teen > Adult, evolving over hours of playtime
-- **Needs system** — Hunger, happiness, energy decay in real time
-- **Story events** — 15 scripted events triggered by stage, playtime, and conditions
-- **Right-click menu** — Feed, play, talk, status, always-on-top toggle
-- **Persistent save** — JSON save at `~/.desktop_pet/`, offline decay included
-- **Ultra low resource** — 12 FPS, ~2100 lines of Python, minimal CPU usage
+---
 
-## Quick Start
+## 为什么你需要一只桌面宠物？
+
+它**不会打扰你**。没有弹窗、没有通知红点、没有每日签到。它就安静地待在屏幕角落，偶尔走动两步，偶尔打个瞌睡。你忙的时候它自己玩，你想找它的时候右键点一下就行。
+
+它**有自己的故事**。从一颗刚孵化的史莱姆宝宝，到会追问存在主义问题的叛逆少年，再到会分享人生哲理的成年史莱姆——它会在不同的成长阶段触发不同的剧情对话，一共有 15 段。
+
+它**永远不会死**。需求降到零也只是看起来有点委屈，喂两下就活蹦乱跳了。不会用死亡惩罚你。
+
+---
+
+## 快速开始
 
 ```bash
-# Requires Python 3.10+ and pygame
+# 环境要求：Python 3.10+、pygame 2.5+
 pip install pygame
+git clone https://github.com/nh1571/desktop-pet.git
+cd desktop-pet
 python3 main.py
 ```
 
-**Controls:**
+启动后，一只绿色的史莱姆宝宝就会出现在屏幕右下角。
 
-| Action | How |
-|--------|-----|
-| Move window | Left-click drag |
-| Interact | Right-click menu |
-| Feed | `F` or menu |
-| Play | `P` or menu |
-| Talk | `T` or menu |
-| Sleep | `S` or menu |
-| Quit | `Q` / `Esc` / menu |
+**测试模式：** 想快速体验成长和剧情？
 
-**Test mode:** `python3 main.py --fast` (60x speed for testing growth and events)
+```bash
+python3 main.py --fast    # 60倍速，1分钟 = 1小时
+```
 
-## How It Works
+---
+
+## 操作指南
+
+| 操作 | 方式 |
+|------|------|
+| 移动宠物 | 左键拖拽 |
+| 打开菜单 | 右键点击宠物 |
+| 喂食 | 菜单选 Feed / 按 `F` |
+| 玩耍 | 菜单选 Play / 按 `P` |
+| 聊天 | 菜单选 Talk / 按 `T` |
+| 睡觉 | 菜单选 Sleep / 按 `S` |
+| 查看状态 | 菜单选 Status |
+| 窗口置顶 | 菜单选 Toggle Always-on-Top |
+| 退出 | 按 `Q` / `Esc` / 菜单 Quit |
+
+---
+
+## 游戏系统
+
+### 成长阶段
+
+| 阶段 | 在线时长 | 特点 |
+|------|---------|------|
+| 宝宝 (Baby) | 0 ~ 2 小时 | 圆滚滚的史莱姆宝宝，只会咕噜叫 |
+| 幼年 (Child) | 2 ~ 8 小时 | 长出小角，开始好奇周围的一切 |
+| 少年 (Teen) | 8 ~ 24 小时 | 更清晰的形态，开始思考人生 |
+| 成年 (Adult) | 24 小时以上 | 完整的史莱姆形态，充满智慧 |
+
+### 需求系统
+
+史莱姆有三个需求值，按真实时间自然衰减：
+
+- **饥饿度 (Hunger)** — 饿了就喂它
+- **快乐度 (Happiness)** — 陪它玩会让它开心
+- **精力值 (Energy)** — 困了它会自己睡觉，也可以哄它睡
+
+需求低于阈值会触发不同的行为状态（饿肚子的样子、伤心的表情等）。
+
+### 行为状态机
+
+```
+IDLE → WALKING → [随机散步]
+IDLE → SLEEPING → [精力不足自动入睡]
+IDLE → SAD → [快乐度过低]
+FEED → EATING → HAPPY → IDLE
+PLAY → PLAYING → HAPPY → IDLE
+TALK → HAPPY → IDLE
+```
+
+### 存档系统
+
+自动保存到 `~/.desktop_pet/save.json`，每 5 分钟存一次，退出时也会保存。离线时间会按比例计算需求衰减——你休假一周回来，史莱姆会非常饿和难过，但喂几次就好了。
+
+---
+
+## 技术细节
 
 ```
 desktop_pet/
-├── main.py              # Game loop, window, input
-├── config.py            # Constants, palette, tuning
-├── sprites.py           # 16x16 pixel art (ASCII-defined)
-├── sprite_renderer.py   # Cache-based scaled rendering
-├── animation.py         # Frame timing, loops
-├── pet.py               # Core pet orchestrator
-├── state_machine.py     # 8 behavior states
-├── needs.py             # Hunger/happiness/energy decay
-├── event_system.py      # 15 story events, triggers
-├── dialog.py            # Typewriter dialog overlay
-├── context_menu.py      # Right-click tkinter menu
-├── window_manager.py    # SDL2 always-on-top, opacity
-├── save_manager.py      # JSON persistence
-└── particles.py         # Sparkle/heart effects
+├── main.py              # 主循环、窗口管理、输入处理
+├── config.py            # 全局常量、调色板、参数
+├── sprites.py           # 16x16 像素精灵（ASCII 定义，代码即美术）
+├── sprite_renderer.py   # 缓存渲染（像素网格 → 10x 缩放 Surface）
+├── animation.py         # 帧动画播放器
+├── pet.py               # 核心 Pet 类（整合全部子系统）
+├── state_machine.py     # 8 种行为状态 + 转换逻辑
+├── needs.py             # 需求衰减 + 阈值判断
+├── event_system.py      # 15 个剧情事件 + 触发条件
+├── dialog.py            # 打字机效果对话框
+├── context_menu.py      # 右键菜单（tkinter popup）
+├── window_manager.py    # SDL2 窗口控制（置顶、透明度、边框）
+├── save_manager.py      # JSON 持久化 + 离线衰减计算
+└── particles.py         # 粒子特效（星星、爱心）
 ```
 
-The pet doesn't die. Needs bottom out at 0 — it just looks sad. Feed it a few times and it bounces back.
+- **纯 Python**，2100 行代码，零外部资源文件
+- **12 FPS** 目标帧率，CPU 占用极低
+- 精灵用 ASCII 字符在代码中定义，不需要任何图片素材
+- 窗口通过 SDL2 实现无边框透明效果
+
+---
 
 ## License
 
-MIT
+MIT — 随便 fork、修改、分发，开心就好。
