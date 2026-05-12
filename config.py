@@ -45,6 +45,13 @@ VECTOR_PALETTE = {
     "crown_shadow":  (200, 160, 0),     # crown dark
     "sparkle":       (255, 230, 100),   # sparkle particles
     "tear":          (100, 150, 220),   # tear drops
-    "bg":            (240, 255, 240),   # background tint
     "ground_shadow": (0, 0, 0, 30),     # ground shadow (low alpha)
+    # Stage-specific body colors
+    "body_baby":     (160, 230, 160),   # baby: light pastel green
+    "body_child":    (130, 215, 130),   # child: slightly deeper
+    "body_teen":     (100, 195, 110),   # teen: richer green
+    "body_adult":    (70, 170, 80),     # adult: deep forest green
+    "body_highlight": (220, 250, 220),  # specular highlight
+    "body_glow":     (180, 240, 180, 60),  # rim light glow
+    "mouth_dark":    (30, 80, 30),      # inside mouth
 }

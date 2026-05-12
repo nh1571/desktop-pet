@@ -29,6 +29,8 @@ from dialog import DialogBox
 from particles import ParticleSystem
 from audio import SoundManager
 from save_manager import SaveManager, ConfigManager
+from food_system import FoodSystem
+from minigame import MiniGame
 
 
 class DesktopPetApp:
@@ -56,6 +58,11 @@ class DesktopPetApp:
         self.sound = SoundManager()
         self.config = ConfigManager()
 
+        # Food system & minigame
+        self.food_system = FoodSystem()
+        self.minigame = MiniGame()
+        self.minigame_active = False
+
         # UI state
         self.dragging = False
         self.drag_offset = (0, 0)
@@ -65,6 +72,10 @@ class DesktopPetApp:
         self.last_save = time.time()
         self.last_blink = time.time()
         self.next_blink = random.uniform(2.0, 5.0)
+
+        # Idle monologue
+        self.idle_timer = 0.0
+        self.idle_chatter_interval = random.uniform(15.0, 45.0)
 
         # Clock
         self.clock = pygame.time.Clock()
@@ -205,6 +216,24 @@ class DesktopPetApp:
                         self.sound.play("boing")
                     elif sn == "WALKING":
                         self.sound.play("step")
+                    elif sn == "DANCING":
+                        self.particles.emit_notes(WINDOW_SIZE // 2,
+                                                  WINDOW_SIZE // 2 - 40)
+                        self.particles.emit_sparkles(WINDOW_SIZE // 2,
+                                                     WINDOW_SIZE // 2 - 40, count=4)
+                        self.sound.play("happy")
+                    elif sn == "CURIOUS":
+                        self.particles.emit_bubbles(WINDOW_SIZE // 2,
+                                                    WINDOW_SIZE // 2 - 30)
+                    elif sn == "CHASING_MOUSE":
+                        self.particles.emit_trail(WINDOW_SIZE // 2,
+                                                  WINDOW_SIZE // 2 + 40)
+                        self.sound.play("step")
+
+                # Update animation to match current state
+                if new_state != prev_state or self.anim_ctrl.finished:
+                    anim_name = new_state.to_anim_name()
+                    self._play_anim(anim_name)
 
                 # Check for story events
                 ev = self.event_system.check_triggers(self.pet)
@@ -221,6 +250,10 @@ class DesktopPetApp:
                 # Update animation controller
                 self.anim_ctrl.update(dt)
 
+                # Eye tracking: look toward mouse position relative to window center
+                mx, my = pygame.mouse.get_pos()
+                self.slime.set_look_target(mx - WINDOW_SIZE // 2, my - WINDOW_SIZE // 2)
+
                 # Copy animation values to slime for drawing
                 self.slime.body_squash = self.anim_ctrl.body_squash
                 self.slime.body_stretch = self.anim_ctrl.body_stretch
@@ -232,6 +265,48 @@ class DesktopPetApp:
 
                 # Update blink state
                 self.slime.update(dt)
+
+                # Idle monologue
+                self.idle_timer += dt
+                if self.idle_timer > self.idle_chatter_interval:
+                    self.idle_timer = 0.0
+                    self.idle_chatter_interval = random.uniform(20.0, 60.0)
+                    msgs = [
+                        "Bloop~", "Hmm...", "What a nice day!",
+                        "I wonder what's out there...", "*humming*",
+                        "I like this spot.", "So comfy...", "Bored, bored, bored.",
+                        "Maybe I'll do a little dance!", "*stretches*",
+                    ]
+                    self.status_text = random.choice(msgs)
+                    self.status_timer = TARGET_FPS * 3
+
+                # Food system update
+                if self.food_system.active_items:
+                    # Move pet toward nearest food if eating
+                    nearest = self.food_system.get_nearest_item(WINDOW_SIZE // 2)
+                    if nearest:
+                        fx, fy = nearest
+                        # Eye target focuses on food
+                        self.slime.set_look_target(fx - WINDOW_SIZE // 2, fy - WINDOW_SIZE // 2)
+                    eaten = self.food_system.update(self.slime, (WINDOW_SIZE // 2, WINDOW_SIZE // 2 + 15))
+                    if eaten:
+                        self.sound.play("nom")
+                        self.particles.emit_hearts(WINDOW_SIZE // 2, WINDOW_SIZE // 2)
+                        self.pet.needs_system.modify(hunger=15, happiness=5)
+                        self.status_text = "*nom nom* Yummy!"
+                        self.status_timer = TARGET_FPS * 2
+
+                # Minigame update
+                if self.minigame_active:
+                    self.minigame.update(dt, self.slime)
+                    if self.minigame.is_finished:
+                        self.minigame_active = False
+                        score = self.minigame.score
+                        self.pet.needs_system.modify(happiness=score * 2)
+                        self.status_text = f"Game over! Score: {score}\n+{score * 2} happiness!"
+                        self.status_timer = TARGET_FPS * 5
+                        self._play_anim("happy")
+                        self.particles.emit_sparkles(WINDOW_SIZE // 2, WINDOW_SIZE // 2 - 40, count=10)
 
             # Update particles
             self.particles.update()
@@ -278,6 +353,17 @@ class DesktopPetApp:
             self.config.set("muted", muted)
             self.config.save()
             return
+        if action == "game":
+            self.minigame_active = True
+            self.minigame.start()
+            self.status_text = "Catch the food! Move with mouse!"
+            self.status_timer = TARGET_FPS * 2
+            return
+        if action == "feed":
+            self.food_system.spawn_random()
+            self.status_text = "Food is falling!"
+            self.status_timer = TARGET_FPS * 2
+            return
         response = self.pet.interact(action)
         if response:
             self.status_text = response
@@ -306,8 +392,8 @@ class DesktopPetApp:
         show_menu(pos, self._handle_action, self.screen)
 
     def _render(self):
-        # Soft background
-        self.screen.fill(P["bg"])
+        # Clear to fully transparent (no background rect)
+        self.screen.fill((0, 0, 0, 0))
 
         # Draw the slime
         self.slime.draw(self.screen)
@@ -324,6 +410,13 @@ class DesktopPetApp:
         # Particles
         self.particles.draw(self.screen, (0, 0))
 
+        # Food items
+        self.food_system.draw(self.screen)
+
+        # Minigame
+        if self.minigame_active:
+            self.minigame.draw(self.screen)
+
         # Dialog overlay
         if self.dialog.active:
             self.dialog.render(self.screen)
@@ -337,14 +430,17 @@ class DesktopPetApp:
     def _render_status_text(self):
         font = pygame.font.Font(None, 16)
         lines = self.status_text.split('\n')
-        y_offset = 8
+        y_offset = WINDOW_SIZE - 10 - len(lines) * 18
         for line in lines:
+            # Shadow glow effect
+            shadow = font.render(line, True, (0, 0, 0))
             text_surf = font.render(line, True, (255, 255, 255))
-            text_bg = pygame.Surface((text_surf.get_width() + 12,
-                                      text_surf.get_height() + 6), pygame.SRCALPHA)
-            text_bg.fill((0, 0, 0, 180))
-            self.screen.blit(text_bg, (8, y_offset))
-            self.screen.blit(text_surf, (14, y_offset + 3))
+            cx = WINDOW_SIZE // 2 - text_surf.get_width() // 2
+            self.screen.blit(shadow, (cx + 1, y_offset + 1))
+            self.screen.blit(shadow, (cx - 1, y_offset + 1))
+            self.screen.blit(shadow, (cx + 1, y_offset - 1))
+            self.screen.blit(shadow, (cx - 1, y_offset - 1))
+            self.screen.blit(text_surf, (cx, y_offset))
             y_offset += text_surf.get_height() + 4
 
     def _save(self):

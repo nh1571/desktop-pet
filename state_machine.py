@@ -13,6 +13,9 @@ class PetState(Enum):
     HAPPY = auto()
     SAD = auto()
     STORY = auto()
+    CURIOUS = auto()
+    DANCING = auto()
+    CHASING_MOUSE = auto()
 
     def to_anim_name(self) -> str:
         mapping = {
@@ -23,7 +26,10 @@ class PetState(Enum):
             PetState.PLAYING: "play",
             PetState.HAPPY: "happy",
             PetState.SAD: "sad",
-            PetState.STORY: "idle",  # story uses dialog overlay
+            PetState.STORY: "idle",
+            PetState.CURIOUS: "curious",
+            PetState.DANCING: "dance",
+            PetState.CHASING_MOUSE: "walk",
         }
         return mapping.get(self, "idle")
 
@@ -55,8 +61,11 @@ class StateMachine:
             self._update_walking(pet)
         elif self.state == PetState.SLEEPING:
             self._update_sleeping(pet, ns)
-        elif self.state in (PetState.EATING, PetState.PLAYING, PetState.HAPPY, PetState.SAD):
+        elif self.state in (PetState.EATING, PetState.PLAYING, PetState.HAPPY, PetState.SAD,
+                            PetState.CURIOUS, PetState.DANCING):
             self._update_timed_state(pet)
+        elif self.state == PetState.CHASING_MOUSE:
+            self._update_chasing_mouse(pet)
         elif self.state == PetState.STORY:
             pass  # story state is managed externally
 
@@ -73,7 +82,18 @@ class StateMachine:
         if self.idle_timer >= self.idle_duration:
             self.idle_timer = 0
             self.idle_duration = self._random_idle_duration()
-            self._transition(PetState.WALKING)
+            # Pick a random autonomous behavior
+            roll = random.random()
+            if roll < 0.35:
+                self._transition(PetState.WALKING)
+            elif roll < 0.55:
+                self._transition(PetState.DANCING)
+            elif roll < 0.65:
+                self._transition(PetState.CURIOUS)
+            elif roll < 0.72 and ns.needs.happiness > 40:
+                self._transition(PetState.HAPPY)
+            else:
+                self._transition(PetState.WALKING)
 
     def _update_walking(self, pet):
         wm = getattr(pet, 'wm', None)
@@ -116,8 +136,34 @@ class StateMachine:
             self._transition(PetState.IDLE)
 
     def _update_timed_state(self, pet):
-        if self.state_timer > 30:  # ~2.5 sec for eat/play/happy/sad
+        durations = {
+            PetState.EATING: 30, PetState.PLAYING: 40,
+            PetState.HAPPY: 25, PetState.SAD: 25,
+            PetState.CURIOUS: 35, PetState.DANCING: 45,
+        }
+        max_t = durations.get(self.state, 30)
+        if self.state_timer > max_t:
             self._transition(PetState.IDLE)
+
+    def _update_chasing_mouse(self, pet):
+        """Chase the mouse cursor position."""
+        import pygame
+        wm = getattr(pet, 'wm', None)
+        if wm is None or self.state_timer > 50:
+            self._transition(PetState.IDLE)
+            return
+        mx, my = pygame.mouse.get_pos()
+        wx, wy = wm.get_position()
+        tx = max(0, min(pet.screen_size[0] - 160, mx - 60))
+        ty = max(0, min(pet.screen_size[1] - 160, my - 60))
+        new_x = int(wx + (tx - wx) * 0.1)
+        new_y = int(wy + (ty - wy) * 0.1)
+        wm.set_position(new_x, new_y)
+
+    def _transition(self, new_state: PetState):
+        self.state = new_state
+        self.state_timer = 0
+        self._interruptible = new_state not in (PetState.EATING, PetState.PLAYING)
 
     def _transition(self, new_state: PetState):
         self.state = new_state

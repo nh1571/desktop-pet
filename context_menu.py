@@ -21,8 +21,9 @@ def show_menu(screen_pos: tuple[int, int], callback, screen: pygame.Surface):
     """
     font = _get_font()
     items = [
-        ("Feed", "feed"),
+        ("Feed (drop food)", "feed"),
         ("Play", "play"),
+        ("Play Game!", "game"),
         ("Talk", "talk"),
         ("---", None),
         ("Sleep", "sleep"),

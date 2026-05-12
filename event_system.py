@@ -22,6 +22,35 @@ class StoryEvent:
 
 EVENTS: list[StoryEvent] = [
     # ═══════════════════════════════════════════
+    # UNIVERSAL (any stage) — idle chatter
+    # ═══════════════════════════════════════════
+    StoryEvent(
+        event_id="bored_chatter_1",
+        title="So Bored...",
+        text="The slime sighs.\n'Nothing interesting happening...'\n'Maybe I should do a dance?'",
+        trigger_stage=STAGE_BABY,
+        trigger_playtime_min=1.0,
+        trigger_random=0.01,
+    ),
+    StoryEvent(
+        event_id="stretch_time",
+        title="Stretch!",
+        text="The slime stretches its body\nto its full, wobbly extent.\n'Ahhh... that feels good.'",
+        trigger_stage=STAGE_BABY,
+        trigger_playtime_min=20.0,
+        trigger_random=0.01,
+    ),
+    StoryEvent(
+        event_id="mouse_curious",
+        title="Follow That Cursor!",
+        text="The slime noticed your cursor\nmoving around a lot.\n'What are you clicking on?'\nit asks, tilting its head.",
+        trigger_stage=STAGE_CHILD,
+        trigger_playtime_min=60.0,
+        trigger_random=0.005,
+        one_shot=False,
+    ),
+
+    # ═══════════════════════════════════════════
     # BABY STAGE
     # ═══════════════════════════════════════════
     StoryEvent(

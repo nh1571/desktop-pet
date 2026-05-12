@@ -207,6 +207,63 @@ ANIM_WALK = AnimClip("walk", [
                  expression="neutral", duration=0.2),
 ], loop=True)
 
+# ── New expression clips ──
+
+ANIM_CURIOUS = AnimClip("curious", [
+    AnimKeyframe(body_squash=1.02, body_stretch=0.98, bounce=0, eye_scale=1.05,
+                 expression="curious", duration=0.6),
+    AnimKeyframe(body_squash=1.05, body_stretch=0.95, bounce=-3, eye_scale=1.1,
+                 expression="curious", duration=0.6),
+], loop=True)
+
+ANIM_SURPRISED = AnimClip("surprised", [
+    AnimKeyframe(body_squash=0.95, body_stretch=1.08, bounce=-8, eye_scale=1.25,
+                 expression="surprised", duration=0.3),
+    AnimKeyframe(body_squash=1.0, body_stretch=1.0, bounce=-3, eye_scale=1.25,
+                 expression="surprised", duration=0.3),
+], loop=False)
+
+ANIM_EXCITED = AnimClip("excited", [
+    AnimKeyframe(body_squash=1.1, body_stretch=0.8, bounce=8, eye_scale=1.2,
+                 expression="excited", duration=0.2),
+    AnimKeyframe(body_squash=0.88, body_stretch=1.18, bounce=-18, eye_scale=1.3,
+                 expression="excited", duration=0.25),
+    AnimKeyframe(body_squash=1.08, body_stretch=0.85, bounce=4, eye_scale=1.2,
+                 expression="excited", duration=0.2),
+], loop=True)
+
+ANIM_MISCHIEVOUS = AnimClip("mischievous", [
+    AnimKeyframe(body_squash=1.03, body_stretch=0.97, bounce=0, eye_scale=0.9,
+                 expression="mischievous", duration=0.5),
+    AnimKeyframe(body_squash=1.06, body_stretch=0.94, bounce=-2, eye_scale=0.85,
+                 expression="mischievous", duration=0.5),
+], loop=True)
+
+ANIM_DIZZY = AnimClip("dizzy", [
+    AnimKeyframe(body_squash=1.0, body_stretch=0.95, bounce=0, eye_scale=0.9,
+                 expression="dizzy", body_tint=(130, 210, 130), duration=0.4),
+    AnimKeyframe(body_squash=1.04, body_stretch=0.92, bounce=0, eye_scale=0.9,
+                 expression="dizzy", body_tint=(125, 205, 125), duration=0.4),
+], loop=True)
+
+ANIM_LOVING = AnimClip("loving", [
+    AnimKeyframe(body_squash=1.02, body_stretch=0.98, bounce=-3, eye_scale=0.95,
+                 expression="loving", body_tint=(255, 180, 180), duration=0.6),
+    AnimKeyframe(body_squash=1.04, body_stretch=0.96, bounce=-5, eye_scale=0.95,
+                 expression="loving", body_tint=(255, 175, 175), duration=0.6),
+], loop=True)
+
+ANIM_DANCE = AnimClip("dance", [
+    AnimKeyframe(body_squash=1.1, body_stretch=0.85, bounce=6, eye_scale=1.1,
+                 expression="very_happy", duration=0.3),
+    AnimKeyframe(body_squash=0.9, body_stretch=1.15, bounce=-12, eye_scale=1.1,
+                 expression="very_happy", duration=0.3),
+    AnimKeyframe(body_squash=1.08, body_stretch=0.9, bounce=3, eye_scale=1.05,
+                 expression="very_happy", duration=0.2),
+    AnimKeyframe(body_squash=0.92, body_stretch=1.1, bounce=-8, eye_scale=1.1,
+                 expression="very_happy", duration=0.2),
+], loop=True)
+
 
 def get_anim(name: str) -> AnimClip:
     return {
@@ -217,4 +274,11 @@ def get_anim(name: str) -> AnimClip:
         "play": ANIM_PLAY,
         "happy": ANIM_HAPPY,
         "sad": ANIM_SAD,
+        "curious": ANIM_CURIOUS,
+        "surprised": ANIM_SURPRISED,
+        "excited": ANIM_EXCITED,
+        "mischievous": ANIM_MISCHIEVOUS,
+        "dizzy": ANIM_DIZZY,
+        "loving": ANIM_LOVING,
+        "dance": ANIM_DANCE,
     }.get(name, ANIM_IDLE)

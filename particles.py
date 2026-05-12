@@ -80,6 +80,42 @@ class ParticleSystem:
         self.emit(x, y, count=1, color=(255, 255, 255), spread=0,
                   life_range=(40, 70), size_range=(4, 6))
 
+    def emit_bubbles(self, x, y, count=4):
+        """Floating bubbles for idle/curious state."""
+        self.emit(x, y, count=count, color=(200, 230, 255),
+                  spread=1.5, life_range=(30, 60), size_range=(3, 7))
+
+    def emit_rainbow(self, x, y, count=8):
+        """Rainbow burst for celebration."""
+        colors = [
+            (255, 100, 100), (255, 200, 60), (255, 255, 100),
+            (100, 255, 100), (100, 180, 255), (130, 100, 255),
+            (255, 120, 220),
+        ]
+        for i in range(count):
+            color = colors[i % len(colors)]
+            vx = random.uniform(-4, 4)
+            vy = random.uniform(-5, -1)
+            life = random.randint(20, 40)
+            self.particles.append(Particle(x, y, vx, vy, life, color,
+                                           random.randint(3, 6)))
+
+    def emit_notes(self, x, y, count=3):
+        """Musical note particles for dancing state."""
+        note_colors = [(255, 220, 60), (255, 160, 60), (255, 100, 180)]
+        for i in range(count):
+            color = note_colors[i % len(note_colors)]
+            vx = random.uniform(-2, 2)
+            vy = random.uniform(-3, -0.5)
+            life = random.randint(25, 50)
+            self.particles.append(Particle(x, y, vx, vy, life, color,
+                                           random.randint(4, 7)))
+
+    def emit_trail(self, x, y, color=(120, 210, 120)):
+        """Small trailing dots for movement."""
+        self.emit(x, y, count=1, color=color, spread=0.5,
+                  life_range=(8, 15), size_range=(2, 3))
+
     def update(self):
         for p in self.particles[:]:
             p.update()
