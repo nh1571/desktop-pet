@@ -1,20 +1,26 @@
 #!/usr/bin/env python3
-"""Desktop Pet — Pixel Art Retro Companion. Entry point."""
+"""Desktop Pet — Q-style Vector Companion. Entry point."""
 
 import sys
 import time
+import random
 
 import pygame
 import pygame._sdl2 as sdl2
 
-from config import WINDOW_SIZE, DEFAULT_OPACITY, TARGET_FPS, PALETTE, AUTOSAVE_INTERVAL
-from sprite_renderer import SpriteRenderer
-from animation import AnimPlayer
-from pet import Pet
+from config import (WINDOW_SIZE, DEFAULT_OPACITY, TARGET_FPS,
+                    VECTOR_PALETTE as P, AUTOSAVE_INTERVAL, STAGE_NAMES,
+                    STAGE_SCALES)
+from vector_renderer import VectorSlime
+from vector_animation import AnimController, get_anim
+from pet import Pet, PetState
+from state_machine import StateMachine
 from window_manager import WindowManager
 from event_system import EventSystem
 from dialog import DialogBox
 from particles import ParticleSystem
+from audio import SoundManager
+from save_manager import SaveManager, ConfigManager
 
 
 class DesktopPetApp:
@@ -26,17 +32,21 @@ class DesktopPetApp:
         self.screen = None
         self.wm = WindowManager()
 
-        # Rendering
-        self.renderer = SpriteRenderer()
-        self.anim_player = AnimPlayer(self.renderer)
+        # Vector rendering
+        self.slime = VectorSlime()
+        self.anim_ctrl = AnimController()
 
-        # Pet
-        self.pet = Pet(self.renderer, self.anim_player)
+        # Pet logic (still manages needs, state machine, growth)
+        self.pet = Pet(window_manager=self.wm,
+                       screen_size=(1920, 1080))
 
         # Event system
         self.event_system = EventSystem()
         self.dialog = DialogBox()
+        self.dialog.on_choice = self._on_dialog_choice
         self.particles = ParticleSystem()
+        self.sound = SoundManager()
+        self.config = ConfigManager()
 
         # UI state
         self.dragging = False
@@ -45,6 +55,8 @@ class DesktopPetApp:
         self.status_text: str | None = None
         self.status_timer = 0
         self.last_save = time.time()
+        self.last_blink = time.time()
+        self.next_blink = random.uniform(2.0, 5.0)
 
         # Clock
         self.clock = pygame.time.Clock()
@@ -52,8 +64,7 @@ class DesktopPetApp:
     def run(self):
         self._init_window()
         self._try_load()
-        # Start idle animation
-        self.pet._play_anim("idle")
+        self._play_anim("idle")
         self._main_loop()
 
     def _init_window(self):
@@ -71,10 +82,10 @@ class DesktopPetApp:
         sh = cg.CGDisplayPixelsHigh(did)
 
         pygame.init()
+        self.sound.init()
         self.screen = pygame.display.set_mode(
-            (WINDOW_SIZE, WINDOW_SIZE), pygame.NOFRAME
+            (WINDOW_SIZE, WINDOW_SIZE), pygame.NOFRAME | pygame.SRCALPHA
         )
-        self.screen.set_colorkey(PALETTE[0])
         pygame.display.set_caption("Desktop Pet")
 
         self.wm.init()
@@ -83,10 +94,20 @@ class DesktopPetApp:
         self.wm.set_opacity(DEFAULT_OPACITY)
 
         # Position at bottom-right corner
-        self.wm.set_position(sw - WINDOW_SIZE - 40, sh - WINDOW_SIZE - 80)
+        self.wm.set_position(sw - WINDOW_SIZE - 40, sh - WINDOW_SIZE - 100)
+        self.pet.screen_size = (sw, sh)
+
+        # Load and apply config
+        cfg = self.config.load()
+        self.wm.set_opacity(cfg.get("opacity", 0.95))
+        self.sound.set_volume(cfg.get("volume", 0.3))
+        self.sound.muted = cfg.get("muted", False)
+        self.pet.name = cfg.get("pet_name", "Slimy")
+        if cfg.get("always_on_top", False):
+            self.always_on_top = True
+            self.wm.set_always_on_top(True)
 
     def _try_load(self):
-        from save_manager import SaveManager
         sm = SaveManager()
         data = sm.load()
         if data:
@@ -125,7 +146,6 @@ class DesktopPetApp:
                     if event.button == 1:
                         self.dragging = True
                         mx, my = pygame.mouse.get_pos()
-                        wx, wy = self.wm.get_position()
                         self.drag_offset = (mx, my)
                     elif event.button == 3:
                         self._show_context_menu(event.pos)
@@ -149,17 +169,61 @@ class DesktopPetApp:
                 self.pet.update(self.speed)
                 new_state = self.pet.state_machine.state
 
-                # Emit particles on state transitions
+                # Growth celebration
+                if self.pet.just_grew_up:
+                    self.particles.emit_sparkles(WINDOW_SIZE // 2,
+                                                 WINDOW_SIZE // 2 - 40, count=16)
+                    stage_name = STAGE_NAMES.get(self.pet.stage, "")
+                    self.status_text = f"{self.pet.name} grew into a {stage_name}!"
+                    self.status_timer = TARGET_FPS * 4
+                    self.pet._prev_stage = self.pet.stage
+
+                # State transition effects
                 if new_state != prev_state:
-                    if new_state.name == "HAPPY":
-                        self.particles.emit_sparkles(WINDOW_SIZE // 2, WINDOW_SIZE // 2 - 20)
-                    elif new_state.name == "EATING":
-                        self.particles.emit_hearts(WINDOW_SIZE // 2, WINDOW_SIZE // 2)
+                    sn = new_state.name
+                    if sn == "HAPPY":
+                        self.particles.emit_sparkles(WINDOW_SIZE // 2,
+                                                     WINDOW_SIZE // 2 - 40)
+                        self.sound.play("happy")
+                    elif sn == "EATING":
+                        self.particles.emit_hearts(WINDOW_SIZE // 2,
+                                                   WINDOW_SIZE // 2)
+                        self.sound.play("nom")
+                    elif sn == "SLEEPING":
+                        self.sound.play("yawn")
+                    elif sn == "SAD":
+                        self.sound.play("sad")
+                    elif sn == "PLAYING":
+                        self.sound.play("boing")
+                    elif sn == "WALKING":
+                        self.sound.play("step")
 
                 # Check for story events
                 ev = self.event_system.check_triggers(self.pet)
                 if ev:
                     self.dialog.show(ev)
+
+                # Blink logic
+                now = time.time()
+                if now - self.last_blink > self.next_blink:
+                    self.slime.trigger_blink()
+                    self.last_blink = now
+                    self.next_blink = random.uniform(2.0, 6.0)
+
+                # Update animation controller
+                self.anim_ctrl.update(dt)
+
+                # Copy animation values to slime for drawing
+                self.slime.body_squash = self.anim_ctrl.body_squash
+                self.slime.body_stretch = self.anim_ctrl.body_stretch
+                self.slime.bounce = self.anim_ctrl.bounce
+                self.slime.eye_scale = self.anim_ctrl.eye_scale
+                self.slime.expression = self.anim_ctrl.expression
+                self.slime.body_tint = self.anim_ctrl.body_tint
+                self.slime.stage = self.pet.stage
+
+                # Update blink state
+                self.slime.update(dt)
 
             # Update particles
             self.particles.update()
@@ -183,6 +247,10 @@ class DesktopPetApp:
         pygame.display.quit()
         pygame.quit()
 
+    def _play_anim(self, name: str):
+        clip = get_anim(name)
+        self.anim_ctrl.play(clip)
+
     def _handle_action(self, action: str):
         if action == "quit":
             pygame.event.post(pygame.event.Event(pygame.QUIT))
@@ -192,54 +260,86 @@ class DesktopPetApp:
             self.wm.set_always_on_top(self.always_on_top)
             self.status_text = f"Always on top: {'ON' if self.always_on_top else 'OFF'}"
             self.status_timer = TARGET_FPS * 2
+            self.config.set("always_on_top", self.always_on_top)
+            self.config.save()
+            return
+        if action == "toggle_mute":
+            muted = self.sound.toggle_mute()
+            self.status_text = f"Sound: {'MUTED' if muted else 'ON'}"
+            self.status_timer = TARGET_FPS * 2
+            self.config.set("muted", muted)
+            self.config.save()
             return
         response = self.pet.interact(action)
         if response:
             self.status_text = response
-            self.status_timer = TARGET_FPS * 3  # 3 seconds
+            self.status_timer = TARGET_FPS * 3
+            # Play corresponding animation
+            if action == "feed":
+                self._play_anim("eat")
+            elif action == "play":
+                self._play_anim("play")
+            elif action == "talk":
+                self._play_anim("happy")
+            elif action == "sleep":
+                self._play_anim("sleep")
+            elif action == "status":
+                pass
+
+    def _on_dialog_choice(self, outcome_id: str):
+        """Handle a dialog choice being selected."""
+        self.event_system.resolve_choice(outcome_id)
+        self.dialog.dismiss()
+        self.pet.state_machine._transition(PetState.IDLE)
+        self._play_anim("idle")
 
     def _show_context_menu(self, pos):
         from context_menu import show_menu
-        show_menu(pos, self._handle_action)
+        show_menu(pos, self._handle_action, self.screen)
 
     def _render(self):
-        self.screen.fill(PALETTE[0])
+        # Soft background
+        self.screen.fill(P["bg"])
 
-        pet_surf = self.anim_player.get_surface()
-        if pet_surf:
-            x = (WINDOW_SIZE - pet_surf.get_width()) // 2
-            y = (WINDOW_SIZE - pet_surf.get_height()) // 2
-            self.screen.blit(pet_surf, (x, y))
+        # Draw the slime
+        self.slime.draw(self.screen)
+
+        # Draw crown for adult
+        cy = int(WINDOW_SIZE // 2 + 15 + self.slime.bounce)
+        stage_scale = STAGE_SCALES.get(self.pet.stage, 1.0)
+        if self.pet.stage >= 3:
+            self.slime.draw_crown(self.screen, WINDOW_SIZE // 2, cy, stage_scale)
+        # Draw horns for teen+
+        if self.pet.stage >= 2:
+            self.slime.draw_horns(self.screen, WINDOW_SIZE // 2, cy, stage_scale)
 
         # Particles
-        self.particles.draw(self.screen, (x, y))
+        self.particles.draw(self.screen, (0, 0))
 
-        # Dialog overlay (bottom of window)
+        # Dialog overlay
         if self.dialog.active:
             self.dialog.render(self.screen)
 
-        # Status text overlay (top of window)
+        # Status text
         if self.status_text and self.status_timer > 0:
             self._render_status_text()
 
         pygame.display.flip()
 
     def _render_status_text(self):
-        """Render a simple text bubble at the top."""
-        font = pygame.font.Font(None, 14)
+        font = pygame.font.Font(None, 16)
         lines = self.status_text.split('\n')
-        y_offset = 4
+        y_offset = 8
         for line in lines:
             text_surf = font.render(line, True, (255, 255, 255))
-            text_bg = pygame.Surface((text_surf.get_width() + 8, text_surf.get_height() + 4))
-            text_bg.fill((0, 0, 0))
-            text_bg.set_alpha(180)
-            self.screen.blit(text_bg, (4, y_offset))
-            self.screen.blit(text_surf, (8, y_offset + 2))
-            y_offset += text_surf.get_height() + 2
+            text_bg = pygame.Surface((text_surf.get_width() + 12,
+                                      text_surf.get_height() + 6), pygame.SRCALPHA)
+            text_bg.fill((0, 0, 0, 180))
+            self.screen.blit(text_bg, (8, y_offset))
+            self.screen.blit(text_surf, (14, y_offset + 3))
+            y_offset += text_surf.get_height() + 4
 
     def _save(self):
-        from save_manager import SaveManager
         data = self.pet.to_dict()
         data["position"] = list(self.wm.get_position())
         sm = SaveManager()

@@ -1,62 +1,127 @@
-"""Right-click context menu using tkinter popup.
+"""Pygame-native right-click context menu. No tkinter dependency."""
 
-Creates and destroys a throwaway tkinter root for each invocation
-to avoid event-loop conflicts with pygame's SDL main loop.
-"""
-
-import tkinter as tk
+import pygame
+import pygame.gfxdraw as gfx
 
 
-def show_menu(screen_pos: tuple[int, int], callback):
-    """Show context menu at the given screen coordinates.
+MENU_FONT: pygame.font.Font | None = None
 
-    callback(action_name: str) is called when a menu item is selected.
+
+def _get_font():
+    global MENU_FONT
+    if MENU_FONT is None:
+        MENU_FONT = pygame.font.Font(None, 16)
+    return MENU_FONT
+
+
+def show_menu(screen_pos: tuple[int, int], callback, screen: pygame.Surface):
+    """Show a pygame-native context menu and block until selection or dismiss.
+
+    Returns the selected action string, or None if dismissed.
     """
-    mx, my = screen_pos
+    font = _get_font()
+    items = [
+        ("Feed", "feed"),
+        ("Play", "play"),
+        ("Talk", "talk"),
+        ("---", None),
+        ("Sleep", "sleep"),
+        ("Status", "status"),
+        ("---", None),
+        ("Toggle Always-on-Top", "toggle_top"),
+        ("Mute / Unmute", "toggle_mute"),
+        ("---", None),
+        ("Quit", "quit"),
+    ]
 
-    root = tk.Tk()
-    root.withdraw()
-    root.attributes('-alpha', 0.0)
+    # Measure menu
+    item_h = 22
+    pad_x = 14
+    pad_y = 8
+    max_w = max(font.render(label, True, (0, 0, 0)).get_width()
+                for label, _ in items if label != "---")
+    sep_h = 6
+    total_h = sum(item_h if label != "---" else sep_h for label, _ in items) + pad_y * 2
+    menu_w = max_w + pad_x * 2
 
-    # Calculate screen position
-    root.update_idletasks()
-    try:
-        screen_x = root.winfo_pointerx()
-        screen_y = root.winfo_pointery()
-    except Exception:
-        screen_x, screen_y = mx + 100, my + 100
+    # Create menu surface
+    menu_surf = pygame.Surface((menu_w, total_h), pygame.SRCALPHA)
+    bg = (255, 255, 255, 245)
+    outline = (180, 200, 180, 220)
+    menu_surf.fill(bg)
+    pygame.draw.rect(menu_surf, outline, menu_surf.get_rect(), 1)
 
-    menu = tk.Menu(root, tearoff=0, font=('Monaco', 11))
+    # Draw items
+    menu_items = []  # (rect, action)
+    y = pad_y
+    for label, action in items:
+        if label == "---":
+            pygame.draw.line(menu_surf, (200, 200, 200, 150),
+                             (pad_x, y + 2), (menu_w - pad_x, y + 2), 1)
+            y += sep_h
+        else:
+            text = font.render(label, True, (40, 40, 40))
+            menu_surf.blit(text, (pad_x, y + 3))
+            menu_items.append((pygame.Rect(0, y, menu_w, item_h), action))
+            y += item_h
 
-    def select(action):
-        try:
-            root.destroy()
-        except tk.TclError:
-            pass
-        callback(action)
+    # Position menu at click point
+    menu_x, menu_y = screen_pos
 
-    menu.add_command(label='Feed (+30)',
-                     command=lambda: select('feed'))
-    menu.add_command(label='Play (+30)',
-                     command=lambda: select('play'))
-    menu.add_command(label='Talk',
-                     command=lambda: select('talk'))
-    menu.add_separator()
-    menu.add_command(label='Sleep',
-                     command=lambda: select('sleep'))
-    menu.add_command(label='Status',
-                     command=lambda: select('status'))
-    menu.add_separator()
-    menu.add_command(label='Toggle Always-on-Top',
-                     command=lambda: select('toggle_top'))
-    menu.add_separator()
-    menu.add_command(label='Quit',
-                     command=lambda: select('quit'))
+    # Show menu inline: draw it on screen, wait for click
+    clock = pygame.time.Clock()
+    selected = None
 
-    try:
-        menu.tk_popup(screen_x, screen_y)
-    finally:
-        try:
-            root.destroy()
-        except tk.TclError:
-            pass
+    while selected is None:
+        for event in pygame.event.get():
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                mx, my = event.pos
+                rx = mx - menu_x
+                ry = my - menu_y
+                for rect, action in menu_items:
+                    if rect.collidepoint(rx, ry):
+                        selected = action
+                        break
+                # Click outside menu = dismiss
+                if selected is None:
+                    # Check if click was on menu at all
+                    menu_rect = pygame.Rect(menu_x, menu_y, menu_w, total_h)
+                    if not menu_rect.collidepoint(mx, my):
+                        selected = ""  # dismiss
+            elif event.type == pygame.QUIT:
+                selected = ""
+
+        # Redraw menu with hover effect
+        mx, my = pygame.mouse.get_pos()
+        rx, ry = mx - menu_x, my - menu_y
+
+        # Re-draw items with hover
+        y = pad_y
+        item_idx = 0
+        for label, action in items:
+            if label == "---":
+                y += sep_h
+            else:
+                rect = pygame.Rect(0, y, menu_w, item_h)
+                if rect.collidepoint(rx, ry):
+                    # Hover highlight
+                    highlight = pygame.Surface((menu_w, item_h), pygame.SRCALPHA)
+                    highlight.fill((100, 180, 100, 60))
+                    menu_surf.blit(highlight, (0, y))
+                    text = font.render(label, True, (20, 60, 20))
+                    menu_surf.blit(text, (pad_x, y + 3))
+                else:
+                    # Reset to normal
+                    menu_surf.fill(bg, rect)
+                    text = font.render(label, True, (40, 40, 40))
+                    menu_surf.blit(text, (pad_x, y + 3))
+                item_idx += 1
+                y += item_h
+
+        # Draw menu onto screen
+        screen.blit(menu_surf, (menu_x, menu_y))
+        pygame.display.flip()
+        clock.tick(30)
+
+    if selected and selected != "":
+        callback(selected)

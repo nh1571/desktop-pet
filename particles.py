@@ -1,20 +1,21 @@
-"""Simple particle effects for sparkles, hearts, etc."""
+"""Smooth circular particle effects with easing."""
 
 import random
 import pygame
+import pygame.gfxdraw as gfx
 
-from config import PALETTE
+from config import VECTOR_PALETTE as P
 
 
 class Particle:
-    def __init__(self, x, y, vx, vy, life, color_idx, size=2):
+    def __init__(self, x, y, vx, vy, life, color, size=3):
         self.x = x
         self.y = y
         self.vx = vx
         self.vy = vy
         self.life = life
         self.max_life = life
-        self.color_idx = color_idx
+        self.color = color
         self.size = size
 
     @property
@@ -23,45 +24,61 @@ class Particle:
 
     @property
     def alpha(self):
-        return int(255 * self.life / self.max_life)
+        t = self.life / self.max_life
+        # Ease-out fade
+        return int(255 * t * t)
 
     def update(self):
         self.x += self.vx
         self.y += self.vy
-        self.vy += 0.1  # gravity (subtle)
+        self.vy += 0.08  # subtle gravity
         self.life -= 1
 
     def draw(self, screen, offset=(0, 0)):
-        color = PALETTE.get(self.color_idx, (255, 255, 255))
         ox, oy = offset
-        rect = pygame.Rect(
-            int(self.x + ox), int(self.y + oy),
-            self.size, self.size
-        )
-        surf = pygame.Surface((self.size, self.size), pygame.SRCALPHA)
-        surf.fill((*color, self.alpha))
-        screen.blit(surf, rect)
+        px = int(self.x + ox)
+        py = int(self.y + oy)
+        r = max(1, self.size)
+        alpha = self.alpha
+        if alpha < 5:
+            return
+        color = (*self.color[:3], alpha)
+        gfx.filled_circle(screen, px, py, r, color)
+        gfx.aacircle(screen, px, py, r, color)
 
 
 class ParticleSystem:
     def __init__(self):
         self.particles: list[Particle] = []
 
-    def emit(self, x, y, count=5, color_idx=7, spread=2, life_range=(10, 30)):
+    def emit(self, x, y, count=5, color=(255, 230, 100), spread=2, life_range=(15, 30),
+             size_range=(2, 4)):
         for _ in range(count):
             vx = random.uniform(-spread, spread)
-            vy = random.uniform(-spread - 1, 0)  # upward bias
+            vy = random.uniform(-spread - 1, 0)
             life = random.randint(*life_range)
-            size = random.randint(1, 3)
-            self.particles.append(Particle(x, y, vx, vy, life, color_idx, size))
+            size = random.randint(*size_range)
+            self.particles.append(Particle(x, y, vx, vy, life, color, size))
 
-    def emit_sparkles(self, x, y):
+    def emit_sparkles(self, x, y, count=6):
         """Gold sparkles for happy state."""
-        self.emit(x, y, count=6, color_idx=7, spread=3, life_range=(15, 35))
+        self.emit(x, y, count=count, color=P["sparkle"], spread=3,
+                  life_range=(15, 35), size_range=(2, 5))
 
     def emit_hearts(self, x, y):
-        """Small red particles for loved state."""
-        self.emit(x, y, count=4, color_idx=6, spread=2, life_range=(20, 40))
+        """Small pink particles for eating/loved state."""
+        self.emit(x, y, count=5, color=P["blush"][:3], spread=2,
+                  life_range=(20, 40), size_range=(2, 4))
+
+    def emit_tears(self, x, y):
+        """Blue tear drops for sad state."""
+        self.emit(x, y, count=3, color=P["tear"], spread=1,
+                  life_range=(30, 60), size_range=(3, 5))
+
+    def emit_z(self, x, y):
+        """White 'Z' particles for sleeping state."""
+        self.emit(x, y, count=1, color=(255, 255, 255), spread=0,
+                  life_range=(40, 70), size_range=(4, 6))
 
     def update(self):
         for p in self.particles[:]:

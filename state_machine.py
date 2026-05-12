@@ -76,11 +76,42 @@ class StateMachine:
             self._transition(PetState.WALKING)
 
     def _update_walking(self, pet):
+        wm = getattr(pet, 'wm', None)
+        if wm is None:
+            if self.state_timer > 40:
+                self._transition(PetState.IDLE)
+            return
+
+        # Set walk target on first tick
+        if self.state_timer == 1:
+            wx, wy = wm.get_position()
+            bounds = pet.screen_size
+            # Pick random nearby position within screen
+            dx = random.randint(-60, 60)
+            dy = random.randint(-40, 40)
+            tx = max(0, min(bounds[0] - 160, wx + dx))
+            ty = max(0, min(bounds[1] - 160, wy + dy))
+            self.walk_target = (tx, ty)
+
+        # Lerp toward target
+        if self.walk_target != (0, 0):
+            wx, wy = wm.get_position()
+            tx, ty = self.walk_target
+            # Smooth step: move ~20% of remaining distance per tick
+            new_x = int(wx + (tx - wx) * 0.2)
+            new_y = int(wy + (ty - wy) * 0.2)
+            wm.set_position(new_x, new_y)
+            # Snap if close enough
+            if abs(tx - new_x) < 3 and abs(ty - new_y) < 3:
+                wm.set_position(tx, ty)
+
         if self.state_timer > 40:  # ~3 seconds
+            self.walk_target = (0, 0)
             self._transition(PetState.IDLE)
 
     def _update_sleeping(self, pet, ns):
-        # Wake up when energy is restored
+        # Restore energy while sleeping
+        pet.needs_system.modify(energy=0.15)
         if ns.needs.energy > 70 or self.state_timer > 600:  # ~50 sec max
             self._transition(PetState.IDLE)
 

@@ -49,3 +49,45 @@ class SaveManager:
             )
 
         return data
+
+
+class ConfigManager:
+    """Manages app configuration in ~/.desktop_pet/config.json."""
+
+    DEFAULTS = {
+        "volume": 0.3,
+        "muted": False,
+        "opacity": 0.9,
+        "always_on_top": False,
+        "pet_name": "Slimy",
+        "autosave_interval": 300,
+    }
+
+    def __init__(self):
+        self.save_dir = Path(SAVE_DIR).expanduser()
+        self.config_path = self.save_dir / "config.json"
+        self.data: dict = {}
+
+    def load(self) -> dict:
+        self.save_dir.mkdir(parents=True, exist_ok=True)
+        if self.config_path.exists():
+            with open(self.config_path) as f:
+                self.data = json.load(f)
+        # Merge with defaults for any missing keys
+        for k, v in self.DEFAULTS.items():
+            if k not in self.data:
+                self.data[k] = v
+        return self.data
+
+    def save(self):
+        self.save_dir.mkdir(parents=True, exist_ok=True)
+        tmp = str(self.config_path) + ".tmp"
+        with open(tmp, 'w') as f:
+            json.dump(self.data, f, indent=2)
+        os.replace(tmp, str(self.config_path))
+
+    def get(self, key: str, default=None):
+        return self.data.get(key, self.DEFAULTS.get(key, default))
+
+    def set(self, key: str, value):
+        self.data[key] = value

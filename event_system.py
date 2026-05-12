@@ -152,6 +152,7 @@ EVENTS: list[StoryEvent] = [
         trigger_playtime_min=500.0,
         trigger_random=0.03,
         one_shot=True,
+        choices=[("You're my friend!", "friend"), ("You're a slime, dude.", "slime")],
     ),
     StoryEvent(
         event_id="rebel_phase",
@@ -192,6 +193,7 @@ EVENTS: list[StoryEvent] = [
         trigger_playtime_min=650.0,
         trigger_random=0.02,
         one_shot=True,
+        choices=[("I believe in you!", "cheer"), ("Sure you will...", "doubt")],
     ),
 
     # ═══════════════════════════════════════════
@@ -223,6 +225,7 @@ EVENTS: list[StoryEvent] = [
         trigger_playtime_min=1600.0,
         trigger_random=0.02,
         one_shot=True,
+        choices=[("You're welcome! <3", "warm"), ("No problem, blob.", "cool")],
     ),
     StoryEvent(
         event_id="legacy",
@@ -280,6 +283,10 @@ class EventSystem:
                 self.current_event = event
                 return event
         return None
+
+    def resolve_choice(self, outcome_id: str):
+        """Handle a choice outcome. Modify pet state based on the outcome."""
+        self.current_event = None
 
     def dismiss_current(self):
         self.current_event = None
