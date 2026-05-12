@@ -3,3 +3,8 @@ __pycache__/
 ~/.desktop_pet/
 save.json
 *.tmp
+build/
+dist/
+*.spec
+app_icon.png
+app_icon.icns

@@ -1,12 +1,20 @@
 #!/usr/bin/env python3
 """Desktop Pet — Q-style Vector Companion. Entry point."""
 
+import os
 import sys
 import time
 import random
 
 import pygame
 import pygame._sdl2 as sdl2
+
+
+def resource_path(relative_path):
+    """Get absolute path to resource, works for dev and PyInstaller."""
+    if hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.abspath("."), relative_path)
 
 from config import (WINDOW_SIZE, DEFAULT_OPACITY, TARGET_FPS,
                     VECTOR_PALETTE as P, AUTOSAVE_INTERVAL, STAGE_NAMES,

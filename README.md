@@ -6,6 +6,19 @@
 
 ---
 
+## 下载安装
+
+**[下载最新版 (v1.0.0)](https://github.com/nh1571/desktop-pet/releases/latest)**
+
+1. 下载 `Desktop-Pet-macOS.dmg`
+2. 双击打开，把 `Desktop Pet` 拖入 `Applications`
+3. 首次打开：右键 → 打开（未签名开发者）
+4. 史莱姆出现在右下角，这样就完成啦
+
+> 需要 macOS 10.13+（Intel 或 Apple Silicon）
+
+---
+
 ## 为什么你需要一只桌面宠物？
 
 它**不会打扰你**。没有弹窗、没有通知红点、没有每日签到。它就安静地待在屏幕角落，偶尔走动两步，偶尔打个瞌睡。你忙的时候它自己玩，你想找它的时候右键点一下就行。
@@ -16,7 +29,7 @@
 
 ---
 
-## 快速开始
+## 快速开始（开发者）
 
 ```bash
 # 环境要求：Python 3.10+、pygame 2.5+
@@ -32,6 +45,12 @@ python3 main.py
 
 ```bash
 python3 main.py --fast    # 60倍速，1分钟 = 1小时
+```
+
+**打包为 .app：**
+
+```bash
+./make_dmg.sh    # 生成 dist/Desktop-Pet-macOS.dmg
 ```
 
 ---
@@ -95,25 +114,29 @@ TALK → HAPPY → IDLE
 ```
 desktop_pet/
 ├── main.py              # 主循环、窗口管理、输入处理
-├── config.py            # 全局常量、调色板、参数
-├── sprites.py           # 16x16 像素精灵（ASCII 定义，代码即美术）
-├── sprite_renderer.py   # 缓存渲染（像素网格 → 10x 缩放 Surface）
-├── animation.py         # 帧动画播放器
+├── config.py            # 全局常量、Q版矢量调色板、参数
+├── vector_renderer.py   # Q版矢量史莱姆绘制引擎（抗锯齿几何绘制）
+├── vector_animation.py  # 关键帧动画系统（7种动画 + 缓动插值）
 ├── pet.py               # 核心 Pet 类（整合全部子系统）
 ├── state_machine.py     # 8 种行为状态 + 转换逻辑
 ├── needs.py             # 需求衰减 + 阈值判断
 ├── event_system.py      # 15 个剧情事件 + 触发条件
-├── dialog.py            # 打字机效果对话框
-├── context_menu.py      # 右键菜单（tkinter popup）
+├── dialog.py            # 气泡式对话 UI（打字机效果）
+├── context_menu.py      # pygame 原生右键菜单
 ├── window_manager.py    # SDL2 窗口控制（置顶、透明度、边框）
+├── audio.py             # 8-bit 程序化音效生成
 ├── save_manager.py      # JSON 持久化 + 离线衰减计算
-└── particles.py         # 粒子特效（星星、爱心）
+├── particles.py         # 光滑圆形粒子特效
+├── make_dmg.sh          # macOS 安装包一键构建
+└── generate_icon.py     # 应用图标生成
 ```
 
-- **纯 Python**，2100 行代码，零外部资源文件
-- **12 FPS** 目标帧率，CPU 占用极低
-- 精灵用 ASCII 字符在代码中定义，不需要任何图片素材
-- 窗口通过 SDL2 实现无边框透明效果
+- **纯 Python**，零外部图片/音频资源文件
+- **256x256** Q版矢量渲染，30 FPS
+- 精灵通过 `pygame.gfxdraw` 几何绘制 + 抗锯齿
+- 动画通过关键帧 + 缓动函数插值
+- 音效通过程序化合成（sine/白噪音/扫频）
+- SDL2 无边框窗口实现桌面贴附效果
 
 ---
 
